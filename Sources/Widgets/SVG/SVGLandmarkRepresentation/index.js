@@ -26,10 +26,13 @@ function vtkSVGLandmarkRepresentation(publicAPI, model) {
       const a = [];
       for (let i = 0; i < points2d.length; i++) {
         const xy = points2d[i];
+        const x = xy[0];
+        const y = winSize.vsize - xy[1];
         a.push(`
 <circle
-cx="${xy[0]}" cy="${winSize.vsize - xy[1]}"
+cx="${x}" cy="${y}"
 r="25" stroke-width="10" stroke="green" fill="none" />
+<text x="${x + 25}" y="${y - 25}" fill="white">Label ${i}</text>
 `);
       }
       model.root.innerHTML = a.join('');
