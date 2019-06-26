@@ -2,9 +2,12 @@ import macro from 'vtk.js/Sources/macro';
 import vtkOpenGLHardwareSelector from 'vtk.js/Sources/Rendering/OpenGL/HardwareSelector';
 import { FieldAssociations } from 'vtk.js/Sources/Common/DataModel/DataSet/Constants';
 import WMConstants from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
+import vtkSVGRepresentation from 'vtk.js/Sources/Widgets/SVG/SVGRepresentation';
 
 const { ViewTypes, RenderingTypes } = WMConstants;
 const { vtkErrorMacro } = macro;
+
+const SVG_XMLNS = 'http://www.w3.org/2000/svg';
 
 let viewIdCount = 1;
 
@@ -20,6 +23,24 @@ export function extractRenderingComponents(renderer) {
   return { renderer, renderWindow, interactor, openGLRenderWindow, camera };
 }
 
+function createSvgRoot(id) {
+  const wrapper = document.createElement('div');
+  wrapper.setAttribute(
+    'style',
+    'position: absolute; top: 0; left: 0; width: 100%; height: 100%;'
+  );
+
+  const svgRoot = document.createElementNS(SVG_XMLNS, 'svg');
+  svgRoot.setAttribute('width', '100%');
+  svgRoot.setAttribute('height', '100%');
+  svgRoot.setAttribute('version', '1.1');
+  svgRoot.setAttribute('baseProfile', 'full');
+
+  wrapper.appendChild(svgRoot);
+
+  return { svgWrapper: wrapper, svgRoot };
+}
+
 // ----------------------------------------------------------------------------
 // vtkWidgetManager methods
 // ----------------------------------------------------------------------------
@@ -30,6 +51,7 @@ function vtkWidgetManager(publicAPI, model) {
   }
   model.classHierarchy.push('vtkWidgetManager');
   const propsWeakMap = new WeakMap();
+  const widgetToSvgMap = new WeakMap();
   const subscriptions = [];
 
   // --------------------------------------------------------------------------
@@ -41,11 +63,14 @@ function vtkWidgetManager(publicAPI, model) {
     FieldAssociations.FIELD_ASSOCIATION_POINTS
   );
 
+  const { svgWrapper, svgRoot } = createSvgRoot(model.viewId);
+  model.svgRoot = svgRoot;
+
   // --------------------------------------------------------------------------
   // API internal
   // --------------------------------------------------------------------------
 
-  function updateWeakMap(widget) {
+  function updateWidgetWeakMap(widget) {
     const representations = widget.getRepresentations();
     for (let i = 0; i < representations.length; i++) {
       const representation = representations[i];
@@ -66,6 +91,54 @@ function vtkWidgetManager(publicAPI, model) {
         : widget.getWidgetForView({ viewId: model.viewId }))
     );
   }
+
+  function enableSvgLayer() {
+    const container = model.openGLRenderWindow.getReferenceByName('el');
+    container.appendChild(svgWrapper);
+  }
+
+  function disableSvgLayer() {
+    const container = model.openGLRenderWindow.getReferenceByName('el');
+    container.removeChild(svgWrapper);
+  }
+
+  function addToSvgLayer(viewWidget) {
+    const svgReps = viewWidget
+      .getRepresentations()
+      .filter((r) => r.isA('vtkSVGRepresentation'));
+
+    const widgetGroup = vtkSVGRepresentation.createElement('g');
+
+    const els = [].concat(...svgReps.map((rep) => rep.getElements()));
+    for (let i = 0; i < els.length; i++) {
+      widgetGroup.appendChild(els[i]);
+    }
+
+    model.svgRoot.appendChild(widgetGroup);
+    widgetToSvgMap.set(viewWidget, widgetGroup);
+  }
+
+  function updateSvg() {
+    for (let i = 0; i < model.widgets.length; i++) {
+      const widget = model.widgets[i];
+      const svgReps = widget
+        .getRepresentations()
+        .filter((r) => r.isA('vtkSVGRepresentation'));
+      for (let j = 0; j < svgReps.length; j++) {
+        svgReps[j].getOutputData();
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Bind listeners to svg root
+  // --------------------------------------------------------------------------
+
+  model.svgRoot.addEventListener('mousemove', (ev) => {
+    if (ev.target !== model.svgRoot) {
+      // ev.stopPropagation();
+    }
+  });
 
   // --------------------------------------------------------------------------
   // API public
@@ -120,6 +193,8 @@ function vtkWidgetManager(publicAPI, model) {
       })
     );
 
+    subscriptions.push(model.interactor.onRenderEvent(updateSvg));
+
     subscriptions.push(
       model.interactor.onMouseMove(({ position }) => {
         if (!model.pickingAvailable) {
@@ -167,9 +242,12 @@ function vtkWidgetManager(publicAPI, model) {
     );
 
     publicAPI.modified();
-
     if (model.pickingEnabled) {
       publicAPI.enablePicking();
+    }
+
+    if (model.useSvgLayer) {
+      enableSvgLayer();
     }
   };
 
@@ -181,6 +259,7 @@ function vtkWidgetManager(publicAPI, model) {
       return null;
     }
     const { viewId, renderer } = model;
+
     const w = widget.getWidgetForView({
       viewId,
       renderer,
@@ -191,10 +270,13 @@ function vtkWidgetManager(publicAPI, model) {
     if (model.widgets.indexOf(w) === -1) {
       model.widgets.push(w);
       w.setWidgetManager(publicAPI);
-      updateWeakMap(w);
+      updateWidgetWeakMap(w);
 
       // Register to renderer
       model.renderer.addActor(w);
+
+      // register widget to svg layer
+      addToSvgLayer(w);
 
       publicAPI.modified();
     }
@@ -286,6 +368,20 @@ function vtkWidgetManager(publicAPI, model) {
   };
 
   publicAPI.releaseFocus = () => publicAPI.grabFocus(null);
+
+  publicAPI.setUseSvgLayer = (useSvgLayer) => {
+    if (useSvgLayer !== model.useSvgLayer) {
+      if (model.renderer) {
+        if (useSvgLayer) {
+          enableSvgLayer();
+        } else {
+          disableSvgLayer();
+        }
+      }
+      return true;
+    }
+    return false;
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -302,6 +398,7 @@ const DEFAULT_VALUES = {
   selections: null,
   previousSelectedData: null,
   widgetInFocus: null,
+  useSvgLayer: true,
 };
 
 // ----------------------------------------------------------------------------
@@ -318,6 +415,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'widgets',
     'viewId',
     'pickingEnabled',
+    'useSvgLayer',
   ]);
 
   // Object specific methods

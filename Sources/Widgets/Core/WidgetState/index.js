@@ -99,7 +99,7 @@ function vtkWidgetState(publicAPI, model) {
   // Nested state methods
   // --------------------------------------------------------------------------
 
-  publicAPI.getStatesWithLabel = (name) => model.labels[name];
+  publicAPI.getStatesWithLabel = (name) => model.labels[name] || [];
 
   publicAPI.getAllNestedStates = () => model.nestedStates;
 

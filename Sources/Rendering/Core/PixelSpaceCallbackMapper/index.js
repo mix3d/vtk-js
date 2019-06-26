@@ -10,10 +10,6 @@ import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 function vtkPixelSpaceCallbackMapper(publicAPI, model) {
   model.classHierarchy.push('vtkPixelSpaceCallbackMapper');
 
-  if (!model.callback) {
-    model.callback = () => {};
-  }
-
   publicAPI.invokeCallback = (
     dataset,
     camera,
@@ -56,7 +52,7 @@ function vtkPixelSpaceCallbackMapper(publicAPI, model) {
       coords.push(coord);
     }
 
-    model.callback(coords, camera, aspect, depthValues);
+    model.callback(coords, camera, aspect, windowSize, depthValues);
   };
 }
 
