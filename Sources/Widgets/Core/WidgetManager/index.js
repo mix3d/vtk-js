@@ -31,8 +31,7 @@ function createSvgRoot(id) {
   );
 
   const svgRoot = document.createElementNS(SVG_XMLNS, 'svg');
-  svgRoot.setAttribute('width', '100%');
-  svgRoot.setAttribute('height', '100%');
+  svgRoot.setAttribute('style', 'width: 100%; height: 100%;');
   svgRoot.setAttribute('version', '1.1');
   svgRoot.setAttribute('baseProfile', 'full');
 
@@ -119,6 +118,15 @@ function vtkWidgetManager(publicAPI, model) {
   }
 
   function updateSvg() {
+    const [cwidth, cheight] = model.openGLRenderWindow.getSize();
+    const ratio = window.devicePixelRatio;
+    const bwidth = cwidth / ratio;
+    const bheight = cheight / ratio;
+    const viewBox = `0 0 ${cwidth} ${cheight}`;
+    model.svgRoot.setAttribute('width', bwidth);
+    model.svgRoot.setAttribute('height', bheight);
+    model.svgRoot.setAttribute('viewBox', viewBox);
+
     for (let i = 0; i < model.widgets.length; i++) {
       const widget = model.widgets[i];
       const svgReps = widget
