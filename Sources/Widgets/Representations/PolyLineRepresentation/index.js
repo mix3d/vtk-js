@@ -4,7 +4,6 @@ import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkPixelSpaceCallbackMapper from 'vtk.js/Sources/Rendering/Core/PixelSpaceCallbackMapper';
 import vtkMath from 'vtk.js/Sources/Common/Core/Math';
 import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
-import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
 import vtkWidgetRepresentation from 'vtk.js/Sources/Widgets/Representations/WidgetRepresentation';
 
 import PropertyConst from 'vtk.js/Sources/Rendering/Core/Property/Constants';
@@ -15,7 +14,7 @@ const { Interpolation } = PropertyConst;
 // Representation style
 // ----------------------------------------------------------------------------
 
-// const STYLE_PIPELINE_NAMES = ['line', 'tube', 'display2D'];
+// const STYLE_PIPELINE_NAMES = ['line', 'display2D'];
 const STYLE_DEFAULT = {
   active: {},
   inactive: {},
@@ -78,24 +77,12 @@ function vtkPolyLineRepresentation(publicAPI, model) {
     mapper: vtkPixelSpaceCallbackMapper.newInstance(),
     actor: vtkActor.newInstance({ pickable: false }),
   };
-  model.pipelines.tube = {
-    source: vtkTubeFilter.newInstance({
-      radius: 0.01,
-      numberOfSides: 12,
-      capping: false,
-    }),
-    mapper: vtkMapper.newInstance(),
-    actor: vtkActor.newInstance(),
-  };
-  model.pipelines.tube.source.setInputConnection(publicAPI.getOutputPort());
 
-  vtkWidgetRepresentation.connectPipeline(model.pipelines.tube);
   vtkWidgetRepresentation.connectPipeline(model.pipelines.line);
   vtkWidgetRepresentation.connectPipeline(model.pipelines.display2D);
 
   model.actors.push(model.pipelines.display2D.actor);
   model.actors.push(model.pipelines.line.actor);
-  model.actors.push(model.pipelines.tube.actor);
 
   vtkWidgetRepresentation.applyStyles(model.pipelines, STYLE_DEFAULT);
 
